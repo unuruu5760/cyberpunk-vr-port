@@ -311,6 +311,12 @@ play: it is for diagnosis and it costs both frame time and a very large log.
   failed, so check here first when something stops working all at once.
 - Per-mod CET logs live in each mod folder; they follow the same DEBUG switch.
 
+## Fork additions (viewbox / per-eye test branch)
+
+This fork adds **center box on lens**, **per-eye viewbox** tuning, **HUD/Aim fuse**, and **F10 slider UX** on top of upstream 0.1.5. See [release notes](docs/releases/test-viewbox-per-eye-0.1.5.md) for features and known limitations.
+
+**Known limitation:** Large **per-eye** slider values can misalign **shadows** and **SSR** because only the render camera is rotated, not shadow cascades or temporal reflection history. Prefer **shared Box vertical/horizontal** sliders; keep per-eye adjustments small.
+
 ## Test hardware used during development
 
 - Headset: PICO 4 (via VDXR)

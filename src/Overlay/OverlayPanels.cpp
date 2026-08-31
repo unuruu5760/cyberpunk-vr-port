@@ -816,7 +816,8 @@ bool DrawLiveControls(LiveControlsUiState& state) {
                 ImGui::BeginDisabled();
             ImGui::TextUnformatted("Per-eye (Quest 3)");
             ImGui::TextWrapped("Aims each eye independently, same as the shared box. "
-                "To fill FOV margins: left eye a little left, right eye a little right.");
+                "To fill FOV margins: left eye a little left, right eye a little right. "
+                "Large values may misalign shadows and SSR — prefer shared box sliders first.");
             changed |= SliderFloatReset("Left vertical (deg)", &state.xrViewBoxLeftPitchDeg, -15.0f, 15.0f, "%.2f", 0.0f);
             if (ImGui::IsItemHovered()) {
                 ImGui::SetTooltip("Left eye only. Positive = down. Negative = up.");
