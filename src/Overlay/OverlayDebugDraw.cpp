@@ -295,6 +295,7 @@ extern "C" __declspec(dllexport) float    CyberpunkVR_BarrelDotNdcX2 = 0.0f;
 // reference the reticle is being judged against.
 extern "C" __declspec(dllexport) float    CyberpunkVR_SightZeroMeters = 20.0f;   // dot parallax distance
 extern "C" __declspec(dllexport) float    CyberpunkVR_BarrelDotNdcY = 0.0f;
+extern "C" __declspec(dllexport) float    CyberpunkVR_BarrelDotNdcY2 = 0.0f;
 extern "C" __declspec(dllexport) float    CyberpunkVR_BarrelDotRadiusPx = 3.0f;
 // Range at which the dot marks the bullet's line. A mark can only be exact at one distance --
 // that is true of every sight -- but at any finite value both eyes agree on the same world point,
@@ -545,6 +546,18 @@ void DrawBarrelCrosshair() {
                 ? ((scRight.x / displaySize.x) * 2.0f - 1.0f)   // its own eye, its own ray
                 : (CyberpunkVR_BarrelDotNdcX + dx))
                 + CyberpunkVR_BarrelDotOffX2;
+            CyberpunkVR_BarrelDotNdcY2 = CyberpunkVR_BarrelDotNdcY;
+            {
+                const float u = (CyberpunkVR_BarrelDotNdcX + 1.0f) * 0.5f;
+                const float v = (1.0f - CyberpunkVR_BarrelDotNdcY) * 0.5f;
+                float ou = u, ov = v;
+                const uint32_t eyeW = static_cast<uint32_t>(displaySize.x);
+                const uint32_t eyeH = static_cast<uint32_t>(displaySize.y);
+                if (OpenXRManager::Get().WarpViewBoxAimUv(u, v, true, eyeW, eyeH, &ou, &ov)) {
+                    CyberpunkVR_BarrelDotNdcX2 = (ou * 2.0f - 1.0f) + CyberpunkVR_BarrelDotOffX2;
+                    CyberpunkVR_BarrelDotNdcY2 = 1.0f - ov * 2.0f;
+                }
+            }
         }
         CyberpunkVR_BarrelDotRadiusPx = rad;
         CyberpunkVR_BarrelDotTick = GetTickCount64();

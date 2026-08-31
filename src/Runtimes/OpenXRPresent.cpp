@@ -691,10 +691,14 @@ void OpenXRManager::OnPresent(IDXGISwapChain* swapChain) {
                 // rotated by the centre it is being added to, or the two would be mixed timelines again.
                 const bool useVrcamCentre =
                     haveVrcamCenter && (static_cast<uint32_t>(eye) == vrcamEyeIndex);
-                const XrPosef& centre = useVrcamCentre ? vrcamCenterPose : monoCenterPose;
+                XrPosef eyeCentre = useVrcamCentre ? vrcamCenterPose : monoCenterPose;
+                // Rotate this eye first, THEN the IPD offset. Applying the extra after the
+                // offset labelled the image with a pose the camera never rendered -- that is
+                // the head-turn judder. Shared Center box never had this split.
+                ApplyViewBoxEyeExtra(&eyeCentre.orientation, eye);
                 const XrVector3f eyeOffset =
-                    RotateVector(centre.orientation, eyeOffsetHead);
-                monoCapturedPoses[eye] = centre;
+                    RotateVector(eyeCentre.orientation, eyeOffsetHead);
+                monoCapturedPoses[eye] = eyeCentre;
                 monoCapturedPoses[eye].position.x += eyeOffset.x;
                 monoCapturedPoses[eye].position.y += eyeOffset.y;
                 monoCapturedPoses[eye].position.z += eyeOffset.z;

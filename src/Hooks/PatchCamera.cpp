@@ -37,6 +37,11 @@
 #include <cstdint>
 #include <cstddef>
 
+namespace {
+OpenXRHeadPose s_composedXrPose{};
+bool s_composedXrPoseValid = false;
+}
+
 extern "C" void __fastcall OnPatchCameraCallback(float* cameraState, void* ownerState) {
     g_patchCameraHits++;
 
@@ -457,6 +462,8 @@ extern "C" void __fastcall OnPatchCameraCallback(float* cameraState, void* owner
                         const float qr[4] = { rx, ry, rz, rw };
                         cvr::camera::CamWriteRecordPush(qr, p);
                     }
+                    s_composedXrPose = p;
+                    s_composedXrPoseValid = true;
                     ++CyberpunkVR_DebugCamComposed;
                     if (camKind == 2) ++CyberpunkVR_DebugCamVrcamFirst;
 
@@ -574,6 +581,19 @@ extern "C" void __fastcall OnPatchCameraCallback(float* cameraState, void* owner
     if (camKind == 3 && !CyberpunkVR_DeviceCamOrient) haveWriteQuat = false;
 
     if (haveWriteQuat && IsPlausibleUnitQuaternion(hq)) {
+        const int boxEye = (camKind == 1) ? (CyberpunkVR_MainIsRightEye ? 1 : 0)
+                         : (camKind == 2) ? (CyberpunkVR_MainIsRightEye ? 0 : 1)
+                         : -1;
+        if (boxEye >= 0) {
+            OpenXRManager::Get().ApplyViewBoxEyeExtraGame(hq, boxEye);
+            // The ring is matched bit-for-bit against the quaternion actually written into the
+            // camera. Extra after the compose record made that match miss, so Present labelled
+            // the frame with a different pose -- head-turn judder. File the extra'd quat with
+            // the un-extra'd XR sample; submit applies the same extra to that sample.
+            if (s_composedXrPoseValid) {
+                cvr::camera::CamWriteRecordPush(hq, s_composedXrPose);
+            }
+        }
         const uintptr_t q = reinterpret_cast<uintptr_t>(cameraState);
         WriteFloatSafe(q + 0x00, hq[0]);
         WriteFloatSafe(q + 0x04, hq[1]);

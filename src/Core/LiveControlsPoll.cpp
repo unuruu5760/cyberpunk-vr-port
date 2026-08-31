@@ -240,9 +240,16 @@ void PollLiveControls() {
     float xrWheelHornRadius = g_liveControls.xrWheelHornRadius > 0.0f ? g_liveControls.xrWheelHornRadius : 0.12f;
     int xrVehicleGunTrigger = g_liveControls.xrVehicleGunTrigger;
     float xrVehicleThrottleTrim = g_liveControls.xrVehicleThrottleTrim > 0.0f ? g_liveControls.xrVehicleThrottleTrim : 0.5f;
-    int xrLensBoxCenter = 0;
+    int xrLensBoxCenter = 1;
     float xrViewBoxPitchDeg = 0.0f;
     float xrViewBoxYawDeg = 0.0f;
+    float xrViewBoxLeftPitchDeg = 0.0f;
+    float xrViewBoxLeftYawDeg = 0.0f;
+    float xrViewBoxRightPitchDeg = 0.0f;
+    float xrViewBoxRightYawDeg = 0.0f;
+    float xrViewBoxHudTrimDeg = 0.0f;
+    float xrViewBoxAimTrimDeg = 0.0f;
+    float xrForceFovHeld = 0.0f;
 
     FILE* file = _fsopen(g_liveControlPath, "r", _SH_DENYNO);
     if (!file) return;
@@ -596,6 +603,41 @@ void PollLiveControls() {
             xrViewBoxYawDeg = value;
             continue;
         }
+        if (sscanf_s(line, "xr_view_box_left_pitch_deg=%f", &value) == 1 ||
+            sscanf_s(line, "xr_view_box_left_pitch_deg = %f", &value) == 1) {
+            xrViewBoxLeftPitchDeg = value;
+            continue;
+        }
+        if (sscanf_s(line, "xr_view_box_left_yaw_deg=%f", &value) == 1 ||
+            sscanf_s(line, "xr_view_box_left_yaw_deg = %f", &value) == 1) {
+            xrViewBoxLeftYawDeg = value;
+            continue;
+        }
+        if (sscanf_s(line, "xr_view_box_right_pitch_deg=%f", &value) == 1 ||
+            sscanf_s(line, "xr_view_box_right_pitch_deg = %f", &value) == 1) {
+            xrViewBoxRightPitchDeg = value;
+            continue;
+        }
+        if (sscanf_s(line, "xr_view_box_right_yaw_deg=%f", &value) == 1 ||
+            sscanf_s(line, "xr_view_box_right_yaw_deg = %f", &value) == 1) {
+            xrViewBoxRightYawDeg = value;
+            continue;
+        }
+        if (sscanf_s(line, "xr_view_box_hud_trim_deg=%f", &value) == 1 ||
+            sscanf_s(line, "xr_view_box_hud_trim_deg = %f", &value) == 1) {
+            xrViewBoxHudTrimDeg = value;
+            continue;
+        }
+        if (sscanf_s(line, "xr_view_box_aim_trim_deg=%f", &value) == 1 ||
+            sscanf_s(line, "xr_view_box_aim_trim_deg = %f", &value) == 1) {
+            xrViewBoxAimTrimDeg = value;
+            continue;
+        }
+        if (sscanf_s(line, "xr_force_fov_held=%f", &value) == 1 ||
+            sscanf_s(line, "xr_force_fov_held = %f", &value) == 1) {
+            xrForceFovHeld = value;
+            continue;
+        }
 
     }
     fclose(file);
@@ -699,6 +741,32 @@ void PollLiveControls() {
         (xrViewBoxPitchDeg < -30.0f) ? -30.0f : (xrViewBoxPitchDeg > 30.0f ? 30.0f : xrViewBoxPitchDeg);
     g_liveControls.xrViewBoxYawDeg =
         (xrViewBoxYawDeg < -30.0f) ? -30.0f : (xrViewBoxYawDeg > 30.0f ? 30.0f : xrViewBoxYawDeg);
+    if (g_liveControls.xrViewBoxEyeParked == 0) {
+    g_liveControls.xrViewBoxLeftPitchDeg =
+        (xrViewBoxLeftPitchDeg < -30.0f) ? -30.0f : (xrViewBoxLeftPitchDeg > 30.0f ? 30.0f : xrViewBoxLeftPitchDeg);
+    g_liveControls.xrViewBoxLeftYawDeg =
+        (xrViewBoxLeftYawDeg < -30.0f) ? -30.0f : (xrViewBoxLeftYawDeg > 30.0f ? 30.0f : xrViewBoxLeftYawDeg);
+    g_liveControls.xrViewBoxRightPitchDeg =
+        (xrViewBoxRightPitchDeg < -30.0f) ? -30.0f : (xrViewBoxRightPitchDeg > 30.0f ? 30.0f : xrViewBoxRightPitchDeg);
+    g_liveControls.xrViewBoxRightYawDeg =
+        (xrViewBoxRightYawDeg < -30.0f) ? -30.0f : (xrViewBoxRightYawDeg > 30.0f ? 30.0f : xrViewBoxRightYawDeg);
+    g_liveControls.xrViewBoxHudTrimDeg =
+        (xrViewBoxHudTrimDeg < -30.0f) ? -30.0f : (xrViewBoxHudTrimDeg > 30.0f ? 30.0f : xrViewBoxHudTrimDeg);
+    g_liveControls.xrViewBoxAimTrimDeg =
+        (xrViewBoxAimTrimDeg < -30.0f) ? -30.0f : (xrViewBoxAimTrimDeg > 30.0f ? 30.0f : xrViewBoxAimTrimDeg);
+    }
+    if (xrForceFov > 1.0f)
+        g_liveControls.xrForceFovHeld = xrForceFov;
+    else if (xrForceFovHeld > 1.0f)
+        g_liveControls.xrForceFovHeld = xrForceFovHeld;
+    if (g_liveControls.xrViewBoxEyeParked == 0) {
+        g_liveControls.xrViewBoxLeftPitchHeld = g_liveControls.xrViewBoxLeftPitchDeg;
+        g_liveControls.xrViewBoxLeftYawHeld = g_liveControls.xrViewBoxLeftYawDeg;
+        g_liveControls.xrViewBoxRightPitchHeld = g_liveControls.xrViewBoxRightPitchDeg;
+        g_liveControls.xrViewBoxRightYawHeld = g_liveControls.xrViewBoxRightYawDeg;
+        g_liveControls.xrViewBoxHudTrimHeld = g_liveControls.xrViewBoxHudTrimDeg;
+        g_liveControls.xrViewBoxAimTrimHeld = g_liveControls.xrViewBoxAimTrimDeg;
+    }
     SetHmdTrackingSmooth(xrHmdSmooth);
     CyberpunkVR_HandLerpSpeed = (xrHandLerp < 0.0f) ? 0.0f : ((xrHandLerp > 30.0f) ? 30.0f : xrHandLerp);
     // Clamped rather than trusted: at 0 the hold can never be offered and at a third of a metre it is
@@ -816,6 +884,12 @@ LiveControlsUiState MakeLiveControlsUiState() {
     state.xrLensBoxCenter = g_liveControls.xrLensBoxCenter;
     state.xrViewBoxPitchDeg = g_liveControls.xrViewBoxPitchDeg;
     state.xrViewBoxYawDeg = g_liveControls.xrViewBoxYawDeg;
+    state.xrViewBoxLeftPitchDeg = g_liveControls.xrViewBoxLeftPitchDeg;
+    state.xrViewBoxLeftYawDeg = g_liveControls.xrViewBoxLeftYawDeg;
+    state.xrViewBoxRightPitchDeg = g_liveControls.xrViewBoxRightPitchDeg;
+    state.xrViewBoxRightYawDeg = g_liveControls.xrViewBoxRightYawDeg;
+    state.xrViewBoxHudTrimDeg = g_liveControls.xrViewBoxHudTrimDeg;
+    state.xrViewBoxAimTrimDeg = g_liveControls.xrViewBoxAimTrimDeg;
     return state;
 }
 
@@ -823,6 +897,12 @@ void PersistLiveControlsUiState(const LiveControlsUiState& state) {
     InitRuntimePaths();
     FILE* file = _fsopen(g_liveControlPath, "w", _SH_DENYNO);
     if (!file) return;
+
+    const bool parked = g_liveControls.xrViewBoxEyeParked != 0;
+    auto extraOut = [parked](float live, float held) {
+        const float v = parked ? held : live;
+        return (v < -30.0f) ? -30.0f : (v > 30.0f ? 30.0f : v);
+    };
 
     fprintf(file, "xr_head_offset_x=%.4f\n", state.xrHeadOffsetX);
     fprintf(file, "xr_head_offset_y=%.4f\n", state.xrHeadOffsetY);
@@ -835,6 +915,8 @@ void PersistLiveControlsUiState(const LiveControlsUiState& state) {
     fprintf(file, "xr_threaded_submit=%d\n", CyberpunkVR_ThreadedMonoSubmit);
     fprintf(file, "xr_cascade_save_main=%d\n", CyberpunkVR_CascadeSaveMain != 0 ? 1 : 0);
     fprintf(file, "xr_force_fov=%.3f\n", state.xrForceFov);
+    fprintf(file, "xr_force_fov_held=%.3f\n",
+        g_liveControls.xrForceFovHeld > 1.0f ? g_liveControls.xrForceFovHeld : (state.xrForceFov > 1.0f ? state.xrForceFov : 0.0f));
     fprintf(file, "xr_menu_rect=%d\n", state.xrMenuRect != 0 ? 1 : 0);
     fprintf(file, "xr_menu_fov=%.3f\n", state.xrMenuFov);
     fprintf(file, "xr_menu_follow_deg=%.3f\n", state.xrMenuFollowDeg >= 5.0f ? state.xrMenuFollowDeg : 60.0f);
@@ -906,6 +988,12 @@ void PersistLiveControlsUiState(const LiveControlsUiState& state) {
         (state.xrViewBoxPitchDeg < -30.0f) ? -30.0f : (state.xrViewBoxPitchDeg > 30.0f ? 30.0f : state.xrViewBoxPitchDeg));
     fprintf(file, "xr_view_box_yaw_deg=%.3f\n",
         (state.xrViewBoxYawDeg < -30.0f) ? -30.0f : (state.xrViewBoxYawDeg > 30.0f ? 30.0f : state.xrViewBoxYawDeg));
+    fprintf(file, "xr_view_box_left_pitch_deg=%.3f\n", extraOut(state.xrViewBoxLeftPitchDeg, g_liveControls.xrViewBoxLeftPitchHeld));
+    fprintf(file, "xr_view_box_left_yaw_deg=%.3f\n", extraOut(state.xrViewBoxLeftYawDeg, g_liveControls.xrViewBoxLeftYawHeld));
+    fprintf(file, "xr_view_box_right_pitch_deg=%.3f\n", extraOut(state.xrViewBoxRightPitchDeg, g_liveControls.xrViewBoxRightPitchHeld));
+    fprintf(file, "xr_view_box_right_yaw_deg=%.3f\n", extraOut(state.xrViewBoxRightYawDeg, g_liveControls.xrViewBoxRightYawHeld));
+    fprintf(file, "xr_view_box_hud_trim_deg=%.3f\n", extraOut(state.xrViewBoxHudTrimDeg, g_liveControls.xrViewBoxHudTrimHeld));
+    fprintf(file, "xr_view_box_aim_trim_deg=%.3f\n", extraOut(state.xrViewBoxAimTrimDeg, g_liveControls.xrViewBoxAimTrimHeld));
     fclose(file);
 
     WIN32_FILE_ATTRIBUTE_DATA fileData;
@@ -1003,6 +1091,39 @@ extern "C" void SetLiveControlsUiState(const LiveControlsUiState* state, int per
     g_liveControls.xrViewBoxYawDeg =
         (state->xrViewBoxYawDeg < -30.0f) ? -30.0f
         : (state->xrViewBoxYawDeg > 30.0f ? 30.0f : state->xrViewBoxYawDeg);
+    g_liveControls.xrViewBoxLeftPitchDeg =
+        (state->xrViewBoxLeftPitchDeg < -30.0f) ? -30.0f
+        : (state->xrViewBoxLeftPitchDeg > 30.0f ? 30.0f : state->xrViewBoxLeftPitchDeg);
+    g_liveControls.xrViewBoxLeftYawDeg =
+        (state->xrViewBoxLeftYawDeg < -30.0f) ? -30.0f
+        : (state->xrViewBoxLeftYawDeg > 30.0f ? 30.0f : state->xrViewBoxLeftYawDeg);
+    g_liveControls.xrViewBoxRightPitchDeg =
+        (state->xrViewBoxRightPitchDeg < -30.0f) ? -30.0f
+        : (state->xrViewBoxRightPitchDeg > 30.0f ? 30.0f : state->xrViewBoxRightPitchDeg);
+    g_liveControls.xrViewBoxRightYawDeg =
+        (state->xrViewBoxRightYawDeg < -30.0f) ? -30.0f
+        : (state->xrViewBoxRightYawDeg > 30.0f ? 30.0f : state->xrViewBoxRightYawDeg);
+    g_liveControls.xrViewBoxHudTrimDeg =
+        (state->xrViewBoxHudTrimDeg < -30.0f) ? -30.0f
+        : (state->xrViewBoxHudTrimDeg > 30.0f ? 30.0f : state->xrViewBoxHudTrimDeg);
+    g_liveControls.xrViewBoxAimTrimDeg =
+        (state->xrViewBoxAimTrimDeg < -30.0f) ? -30.0f
+        : (state->xrViewBoxAimTrimDeg > 30.0f ? 30.0f : state->xrViewBoxAimTrimDeg);
+    if (g_liveControls.xrViewBoxEyeParked) {
+        g_liveControls.xrViewBoxLeftPitchDeg = 0.0f;
+        g_liveControls.xrViewBoxLeftYawDeg = 0.0f;
+        g_liveControls.xrViewBoxRightPitchDeg = 0.0f;
+        g_liveControls.xrViewBoxRightYawDeg = 0.0f;
+        g_liveControls.xrViewBoxHudTrimDeg = 0.0f;
+        g_liveControls.xrViewBoxAimTrimDeg = 0.0f;
+    } else {
+        g_liveControls.xrViewBoxLeftPitchHeld = g_liveControls.xrViewBoxLeftPitchDeg;
+        g_liveControls.xrViewBoxLeftYawHeld = g_liveControls.xrViewBoxLeftYawDeg;
+        g_liveControls.xrViewBoxRightPitchHeld = g_liveControls.xrViewBoxRightPitchDeg;
+        g_liveControls.xrViewBoxRightYawHeld = g_liveControls.xrViewBoxRightYawDeg;
+        g_liveControls.xrViewBoxHudTrimHeld = g_liveControls.xrViewBoxHudTrimDeg;
+        g_liveControls.xrViewBoxAimTrimHeld = g_liveControls.xrViewBoxAimTrimDeg;
+    }
     WriteVrikSettingsFile(); // publish mouse-Y flag for the CET VRIK mod
 
     if (prevMono != g_liveControls.xrMonoSubmit) {

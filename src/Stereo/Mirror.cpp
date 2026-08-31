@@ -224,7 +224,7 @@ void d12_submit_mirror_copy(ID3D12CommandQueue* queue) {
             GetTickCount64() - CyberpunkVR_BarrelDotTick < 250) {
             if (g_hud_mirror_blit.RecordDot(g_d12_copy_list, g_d12_mtex,
                                             CyberpunkVR_BarrelDotNdcX2,
-                                            CyberpunkVR_BarrelDotNdcY,
+                                            CyberpunkVR_BarrelDotNdcY2,
                                             CyberpunkVR_BarrelDotRadiusPx,
                                             1.0f, 0.045f, 0.045f, 1.0f))
                 ++CyberpunkVR_DebugBarrelDotDraws;

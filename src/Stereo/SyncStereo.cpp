@@ -35,6 +35,7 @@ extern "C" __declspec(dllexport) int32_t CyberpunkVR_StereoLog = 1;
 extern "C" float    CyberpunkVR_BarrelDotNdcX;
 extern "C" float    CyberpunkVR_BarrelDotNdcX2;   // the second eye's own value
 extern "C" float    CyberpunkVR_BarrelDotNdcY;
+extern "C" float    CyberpunkVR_BarrelDotNdcY2;
 extern "C" float    CyberpunkVR_BarrelDotRadiusPx;
 extern "C" unsigned long long CyberpunkVR_BarrelDotTick;
 extern "C" int      CyberpunkVR_BarrelDotSecondEye;

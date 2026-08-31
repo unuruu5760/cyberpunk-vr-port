@@ -806,6 +806,27 @@ public:
     float GetViewBoxManualSlideRad();
     float GetViewBoxManualYawRad();
     void ApplyViewBoxPitch(OpenXRHeadPose* pose);
+    // Per-eye extras (eye 0 = left, 1 = right). Same OpenXR yaw/pitch as the shared box,
+    // applied to that eye's camera write and its submit pose. Submit must apply this
+    // BEFORE the IPD offset, or timewarp judders on head motion.
+    void ApplyViewBoxEyeExtra(XrQuaternionf* q, int eye);
+    void ApplyViewBoxEyeExtraGame(float* qXyzw, int eye);
+    // Extra yaw/pitch of one eye, radians, same sign as ApplyViewBoxEyeExtra (OpenXR).
+    float GetViewBoxEyeExtraYawRad(int eye);
+    float GetViewBoxEyeExtraPitchRad(int eye);
+    // Angular HUD warp for the VRCAM (second) eye: yaw/pitch to rotate a pinhole ray from
+    // VRCAM into MAIN, plus tan(half FOV) of the rendered image. MAIN's HUD cannot move.
+    void GetViewBoxVrcamHudWarp(float* outYawRad, float* outPitchRad,
+                                float* outHalfTanX, float* outHalfTanY,
+                                uint32_t eyeWidth, uint32_t eyeHeight);
+    void GetViewBoxVrcamAimWarp(float* outYawRad, float* outPitchRad,
+                                float* outHalfTanX, float* outHalfTanY,
+                                uint32_t eyeWidth, uint32_t eyeHeight);
+    // inverse=false: VRCAM UV -> MAIN UV (HUD sample). inverse=true: MAIN UV -> VRCAM UV (draw).
+    bool WarpViewBoxHudUv(float u, float v, bool inverse, uint32_t eyeWidth, uint32_t eyeHeight,
+                          float* outU, float* outV);
+    bool WarpViewBoxAimUv(float u, float v, bool inverse, uint32_t eyeWidth, uint32_t eyeHeight,
+                          float* outU, float* outV);
     bool GetRecommendedRenderTargetSize(uint32_t* width, uint32_t* height) const;
 
     bool IsInitialized() const { return m_initialized; }

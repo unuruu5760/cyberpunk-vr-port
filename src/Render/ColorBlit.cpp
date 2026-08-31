@@ -112,7 +112,34 @@ cbuffer Params : register(b0) {
     // pixel in both eyes, which is optical infinity -- and an icon at infinity doubles the moment
     // you converge on a world an arm's length away. See the note where it is computed.
     float  hudShiftU;
+    // Per-eye camera yaw/pitch: reproject the sample (not a 2D pan). See HudParams.
+    float  hudWarpYaw;
+    float  hudWarpPitch;
+    float  hudHalfTanX;
+    float  hudHalfTanY;
 };
+
+float2 HudAngularWarp(float2 uv) {
+    if (abs(hudWarpYaw) < 1.0e-5 && abs(hudWarpPitch) < 1.0e-5) return uv;
+    float thx = max(hudHalfTanX, 0.01);
+    float thy = max(hudHalfTanY, 0.01);
+    float nx = (uv.x - 0.5) * 2.0 * thx;
+    float ny = (0.5 - uv.y) * 2.0 * thy;
+    float nz = 1.0;
+    float cy = cos(hudWarpYaw);
+    float sy = sin(hudWarpYaw);
+    float x1 = nx * cy + nz * sy;
+    float y1 = ny;
+    float z1 = -nx * sy + nz * cy;
+    float cp = cos(hudWarpPitch);
+    float sp = sin(hudWarpPitch);
+    float x2 = x1;
+    float y2 = y1 * cp - z1 * sp;
+    float z2 = y1 * sp + z1 * cp;
+    if (z2 < 0.05) return uv;
+    return float2(0.5 + 0.5 * (x2 / z2) / thx,
+                  0.5 - 0.5 * (y2 / z2) / thy);
+}
 
 // The engine's per-frame constants; frameConst[0].x is the time the flicker runs on. Taking it
 // from the engine rather than from a clock of ours is what keeps the pattern identical in both
@@ -167,12 +194,16 @@ float4 PSMain(VSOut input) : SV_Target {
     if (noGlow)  { kW1 = 0.0; kW2 = 0.0; kW4 = 0.0; }
     if (noHalo)  { kBloomG = 0.0; }
 
-    // _1487 / _1488: the HUD curvature.
-    float cx  = uv.x - 0.5;
-    float cy2 = (uv.y - 0.5) * 2.0;
+    // Angular warp FIRST: this pixel is in the VRCAM camera, which has been yawed/pitched
+    // away from MAIN. Sample MAIN's HUD along the same world ray. A 2D pan cannot do this.
+    float2 suv = HudAngularWarp(uv);
+
+    // _1487 / _1488: the HUD curvature. Applied in MAIN HUD UV so the barrel matches MAIN.
+    float cx  = suv.x - 0.5;
+    float cy2 = (suv.y - 0.5) * 2.0;
     float2 d;
-    d.x = uv.x - (cy2 * cy2) * cx  * kCurve.x;
-    d.y = uv.y - ((cx * cx) * 2.0) * cy2 * kCurve.y;
+    d.x = suv.x - (cy2 * cy2) * cx  * kCurve.x;
+    d.y = suv.y - ((cx * cx) * 2.0) * cy2 * kCurve.y;
     float2 c2 = (d - 0.5) * 2.0;
 
     // _1531 and _2347: the scanline flicker. Its mean is about 0.66 and it gates the glow, so

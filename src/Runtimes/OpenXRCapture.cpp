@@ -46,6 +46,7 @@ extern "C" unsigned long long CyberpunkVR_DebugVisionOverlays;
 extern "C" float    CyberpunkVR_BarrelDotNdcX;
 extern "C" float    CyberpunkVR_BarrelDotNdcX2;   // the second eye's own value
 extern "C" float    CyberpunkVR_BarrelDotNdcY;
+extern "C" float    CyberpunkVR_BarrelDotNdcY2;
 extern "C" float    CyberpunkVR_BarrelDotRadiusPx;
 extern "C" unsigned long long CyberpunkVR_BarrelDotTick;
 extern "C" int      CyberpunkVR_BarrelDotSecondEye;
@@ -934,6 +935,17 @@ bool OpenXRManager::CaptureMonoPresentedFrame(ID3D12Resource* backBuffer, const 
                                 }
                             }
                         }
+                        // Per-eye camera yaw/pitch puts screen-space HUD at two different world
+                        // directions. Reproject this eye's paste (same rotation as the cameras,
+                        // not a 2D pan) so it fuses with MAIN's HUD, which cannot move.
+                        {
+                            float yaw = 0.0f, pitch = 0.0f, thx = 1.0f, thy = 1.0f;
+                            GetViewBoxVrcamHudWarp(&yaw, &pitch, &thx, &thy, eyeW, eyeH);
+                            hp.hudWarpYaw = yaw;
+                            hp.hudWarpPitch = pitch;
+                            hp.hudHalfTanX = thx;
+                            hp.hudHalfTanY = thy;
+                        }
                         vrcamEyeCaptured = m_colorBlit->RecordHudComposite(
                             m_captureCmdList, vrcamSrc, hud, hudBlur, hudExpo, frameCb, hudCb,
                             eyeSlotTex, hp);
@@ -970,7 +982,7 @@ bool OpenXRManager::CaptureMonoPresentedFrame(ID3D12Resource* backBuffer, const 
                         GetTickCount64() - CyberpunkVR_BarrelDotTick < 250) {
                         if (m_colorBlit->RecordDot(m_captureCmdList, eyeSlotTex,
                                                    CyberpunkVR_BarrelDotNdcX2,
-                                                   CyberpunkVR_BarrelDotNdcY,
+                                                   CyberpunkVR_BarrelDotNdcY2,
                                                    CyberpunkVR_BarrelDotRadiusPx,
                                                    1.0f, 0.045f, 0.045f, 1.0f))
                             ++CyberpunkVR_DebugBarrelDotDraws;

@@ -802,7 +802,6 @@ bool OverlayRecordIntoTarget(ID3D12GraphicsCommandList* cmdList, ID3D12Resource*
     // whole overlay LEFT -- which is where a panel nearer than infinity sits in the right eye. Clip
     // rectangles are taken relative to DisplayPos by the backend, so they follow it exactly.
     const ImVec2 savedPos = drawData->DisplayPos;
-    drawData->DisplayPos.x += shiftPx;
 
     // And the background list is dropped for this pass. Erasing from the vector keeps its capacity,
     // so this allocates nothing; CmdListsCount is kept consistent with it because the backend reads
@@ -818,12 +817,83 @@ bool OverlayRecordIntoTarget(ID3D12GraphicsCommandList* cmdList, ID3D12Resource*
         drawData->CmdListsCount = drawData->CmdLists.Size;
     }
 
+    // Per-eye camera yaw is a rotation, not a pan. MAIN authored these verts; put them on the
+    // VRCAM rays that look the same world direction (inverse of the HUD sample warp).
+    std::vector<ImVec2> savedVtx;
+    std::vector<ImVec4> savedClip;
+    bool didWarp = false;
+    {
+        float yaw = 0.0f, pitch = 0.0f, thx = 1.0f, thy = 1.0f;
+        OpenXRManager::Get().GetViewBoxVrcamHudWarp(&yaw, &pitch, &thx, &thy, wantW, wantH);
+        if (std::fabs(yaw) >= 1.0e-5f || std::fabs(pitch) >= 1.0e-5f) {
+            const float dispW = drawData->DisplaySize.x;
+            const float dispH = drawData->DisplaySize.y;
+            if (dispW > 1.0f && dispH > 1.0f) {
+                didWarp = true;
+                const ImVec2 dpos = drawData->DisplayPos;
+                for (int li = 0; li < drawData->CmdLists.Size; ++li) {
+                    ImDrawList* dl = drawData->CmdLists[li];
+                    savedVtx.reserve(savedVtx.size() + static_cast<size_t>(dl->VtxBuffer.Size));
+                    for (int vi = 0; vi < dl->VtxBuffer.Size; ++vi) {
+                        ImDrawVert& vtx = dl->VtxBuffer[vi];
+                        savedVtx.push_back(vtx.pos);
+                        const float u = (vtx.pos.x - dpos.x) / dispW;
+                        const float v = (vtx.pos.y - dpos.y) / dispH;
+                        float ou = u, ov = v;
+                        if (OpenXRManager::Get().WarpViewBoxHudUv(u, v, true, wantW, wantH, &ou, &ov)) {
+                            vtx.pos.x = dpos.x + ou * dispW;
+                            vtx.pos.y = dpos.y + ov * dispH;
+                        }
+                    }
+                    savedClip.reserve(savedClip.size() + static_cast<size_t>(dl->CmdBuffer.Size));
+                    for (int ci = 0; ci < dl->CmdBuffer.Size; ++ci) {
+                        ImDrawCmd& cmd = dl->CmdBuffer[ci];
+                        savedClip.push_back(cmd.ClipRect);
+                        const float x0 = cmd.ClipRect.x, y0 = cmd.ClipRect.y;
+                        const float x1 = cmd.ClipRect.z, y1 = cmd.ClipRect.w;
+                        float minx = 1.0e8f, miny = 1.0e8f, maxx = -1.0e8f, maxy = -1.0e8f;
+                        const float xs[4] = { x0, x1, x0, x1 };
+                        const float ys[4] = { y0, y0, y1, y1 };
+                        for (int k = 0; k < 4; ++k) {
+                            const float u = (xs[k] - dpos.x) / dispW;
+                            const float v = (ys[k] - dpos.y) / dispH;
+                            float ou = u, ov = v;
+                            if (!OpenXRManager::Get().WarpViewBoxHudUv(u, v, true, wantW, wantH, &ou, &ov)) {
+                                ou = u; ov = v;
+                            }
+                            const float px = dpos.x + ou * dispW;
+                            const float py = dpos.y + ov * dispH;
+                            minx = (std::min)(minx, px);
+                            miny = (std::min)(miny, py);
+                            maxx = (std::max)(maxx, px);
+                            maxy = (std::max)(maxy, py);
+                        }
+                        cmd.ClipRect = ImVec4(minx, miny, maxx, maxy);
+                    }
+                }
+            }
+        }
+    }
+
+    drawData->DisplayPos.x += shiftPx;
+
     const bool anything = drawData->CmdListsCount > 0;
     if (anything) {
         cmdList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
         ID3D12DescriptorHeap* heaps[] = {g_srvHeap};
         cmdList->SetDescriptorHeaps(1, heaps);
         ImGui_ImplDX12_RenderDrawData(drawData, cmdList);
+    }
+
+    if (didWarp) {
+        size_t vi = 0, ci = 0;
+        for (int li = 0; li < drawData->CmdLists.Size; ++li) {
+            ImDrawList* dl = drawData->CmdLists[li];
+            for (int i = 0; i < dl->VtxBuffer.Size && vi < savedVtx.size(); ++i, ++vi)
+                dl->VtxBuffer[i].pos = savedVtx[vi];
+            for (int i = 0; i < dl->CmdBuffer.Size && ci < savedClip.size(); ++i, ++ci)
+                dl->CmdBuffer[i].ClipRect = savedClip[ci];
+        }
     }
 
     if (bgIndex >= 0) {

@@ -78,10 +78,29 @@ struct LiveControls {
     volatile float xrVehicleThrottleTrim; // how much of the throttle's full travel the left stick adds or removes per second while a weapon is out. Default 0.5.
     volatile int xrPhysicalBodyRotation; // 1 = physical body rotation (avatar body follows HMD/aim heading). 0 (default) = classic stick/snap heading. Gates the aiming/weapon body-turn paths; vehicles unaffected.
     // Center box on lens: pitch/yaw on camera + submit together (no FOV change).
-    // 0 (default) = off. Opt-in because canted-optics correction is headset-specific.
     volatile int xrLensBoxCenter;
     volatile float xrViewBoxPitchDeg;
     volatile float xrViewBoxYawDeg;
+    // Per-eye extras on top of the shared box sliders (Quest 3 left/right independent).
+    volatile float xrViewBoxLeftPitchDeg;
+    volatile float xrViewBoxLeftYawDeg;
+    volatile float xrViewBoxRightPitchDeg;
+    volatile float xrViewBoxRightYawDeg;
+    // Extra degrees on top of the automatic second-eye HUD fuse (from per-eye yaw).
+    // Same sign as the box sliders: + = HUD moves right in that eye. 0 = automatic only.
+    volatile float xrViewBoxHudTrimDeg;
+    // Aim-dot fuse trim, same idea as HUD fuse, for the red barrel marker.
+    volatile float xrViewBoxAimTrimDeg;
+    // Last forced FOV while "use runtime FOV" is on (xrForceFov == 0). Restored on uncheck.
+    volatile float xrForceFovHeld;
+    // Per-eye extras parked while VRCAM stereo is off. Live extras are 0; these keep the user's values.
+    volatile int xrViewBoxEyeParked;
+    volatile float xrViewBoxLeftPitchHeld;
+    volatile float xrViewBoxLeftYawHeld;
+    volatile float xrViewBoxRightPitchHeld;
+    volatile float xrViewBoxRightYawHeld;
+    volatile float xrViewBoxHudTrimHeld;
+    volatile float xrViewBoxAimTrimHeld;
 };
 
 extern LiveControls g_liveControls;

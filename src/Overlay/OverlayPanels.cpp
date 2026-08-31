@@ -27,6 +27,7 @@
 #include <imgui_impl_win32.h>
 #include "im3d.h"
 #include "Overlay/OverlayInternal.hpp"
+#include "Core/LiveControls.hpp"
 #include "Camera/CameraState.hpp"
 
 extern volatile int g_verboseLog; // per-frame log spam toggle (default off)
@@ -211,6 +212,8 @@ bool DrawFovControl(LiveControlsUiState& state) {
     static float s_savedManualFov = 0.0f;
     if (state.xrForceFov > 0.0f) {
         s_savedManualFov = state.xrForceFov;
+    } else if (g_liveControls.xrForceFovHeld > 0.0f && s_savedManualFov <= 0.0f) {
+        s_savedManualFov = g_liveControls.xrForceFovHeld;
     }
 
     bool useRuntime = state.xrForceFov <= 0.0f;
@@ -218,10 +221,13 @@ bool DrawFovControl(LiveControlsUiState& state) {
         if (useRuntime) {
             if (state.xrForceFov > 0.0f) {
                 s_savedManualFov = state.xrForceFov;
+                g_liveControls.xrForceFovHeld = state.xrForceFov;
             }
             state.xrForceFov = 0.0f;
         } else {
-            state.xrForceFov = (s_savedManualFov > 0.0f) ? s_savedManualFov : 112.0f;
+            const float restore = (s_savedManualFov > 0.0f) ? s_savedManualFov
+                : ((g_liveControls.xrForceFovHeld > 0.0f) ? g_liveControls.xrForceFovHeld : 112.0f);
+            state.xrForceFov = restore;
         }
         changed = true;
     }
@@ -234,6 +240,7 @@ bool DrawFovControl(LiveControlsUiState& state) {
         && !useRuntime) {
         state.xrForceFov = fov;
         s_savedManualFov = fov;
+        g_liveControls.xrForceFovHeld = fov;
         changed = true;
     }
     if (useRuntime) {
@@ -673,6 +680,38 @@ void DrawStereoControls() {
 bool DrawLiveControls(LiveControlsUiState& state) {
     bool changed = false;
 
+    const bool vrcamPath = (CyberpunkVR_StereoSubmit != 0) && (CyberpunkVR_VrcamEnabled != 0);
+    static bool s_parked = false;
+    if (!vrcamPath && !s_parked) {
+        auto keep = [](float live, volatile float* held) {
+            if (std::fabs(live) > 0.01f) *held = live;
+        };
+        keep(state.xrViewBoxLeftPitchDeg, &g_liveControls.xrViewBoxLeftPitchHeld);
+        keep(state.xrViewBoxLeftYawDeg, &g_liveControls.xrViewBoxLeftYawHeld);
+        keep(state.xrViewBoxRightPitchDeg, &g_liveControls.xrViewBoxRightPitchHeld);
+        keep(state.xrViewBoxRightYawDeg, &g_liveControls.xrViewBoxRightYawHeld);
+        keep(state.xrViewBoxHudTrimDeg, &g_liveControls.xrViewBoxHudTrimHeld);
+        keep(state.xrViewBoxAimTrimDeg, &g_liveControls.xrViewBoxAimTrimHeld);
+        state.xrViewBoxLeftPitchDeg = 0.0f;
+        state.xrViewBoxLeftYawDeg = 0.0f;
+        state.xrViewBoxRightPitchDeg = 0.0f;
+        state.xrViewBoxRightYawDeg = 0.0f;
+        state.xrViewBoxHudTrimDeg = 0.0f;
+        state.xrViewBoxAimTrimDeg = 0.0f;
+        s_parked = true;
+        changed = true;
+    } else if (vrcamPath && s_parked) {
+        state.xrViewBoxLeftPitchDeg = g_liveControls.xrViewBoxLeftPitchHeld;
+        state.xrViewBoxLeftYawDeg = g_liveControls.xrViewBoxLeftYawHeld;
+        state.xrViewBoxRightPitchDeg = g_liveControls.xrViewBoxRightPitchHeld;
+        state.xrViewBoxRightYawDeg = g_liveControls.xrViewBoxRightYawHeld;
+        state.xrViewBoxHudTrimDeg = g_liveControls.xrViewBoxHudTrimHeld;
+        state.xrViewBoxAimTrimDeg = g_liveControls.xrViewBoxAimTrimHeld;
+        s_parked = false;
+        changed = true;
+    }
+    g_liveControls.xrViewBoxEyeParked = s_parked ? 1 : 0;
+
     if (ImGui::Button("Recenter HMD (F7)")) {
         RequestLiveControlsRecenter();
     }
@@ -751,8 +790,8 @@ bool DrawLiveControls(LiveControlsUiState& state) {
         ImGui::Separator();
         ImGui::TextUnformatted("HMD picture box");
         ImGui::TextWrapped("Centers the rendered image on the headset's lens optical centre "
-            "(important on canted optics such as Quest 3). Use the sliders below "
-            "to fine-tune vertical and horizontal position.");
+            "(important on canted optics such as Quest 3). Use the shared sliders to move "
+            "both eyes together, then the per-eye sliders if one lens is still off.");
         {
             int boxCenter = state.xrLensBoxCenter != 0 ? 1 : 0;
             if (CheckboxInt("Center box on lens", &boxCenter)) {
@@ -773,6 +812,46 @@ bool DrawLiveControls(LiveControlsUiState& state) {
                 ImGui::SetTooltip("Move the picture box left or right.\n"
                     "Positive = right. Negative = left.");
             }
+            if (s_parked)
+                ImGui::BeginDisabled();
+            ImGui::TextUnformatted("Per-eye (Quest 3)");
+            ImGui::TextWrapped("Aims each eye independently, same as the shared box. "
+                "To fill FOV margins: left eye a little left, right eye a little right.");
+            changed |= SliderFloatReset("Left vertical (deg)", &state.xrViewBoxLeftPitchDeg, -15.0f, 15.0f, "%.2f", 0.0f);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Left eye only. Positive = down. Negative = up.");
+            }
+            changed |= SliderFloatReset("Left horizontal (deg)", &state.xrViewBoxLeftYawDeg, -15.0f, 15.0f, "%.2f", 0.0f);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Left eye only. Positive = right. Negative = left.");
+            }
+            changed |= SliderFloatReset("Right vertical (deg)", &state.xrViewBoxRightPitchDeg, -15.0f, 15.0f, "%.2f", 0.0f);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Right eye only. Positive = down. Negative = up.");
+            }
+            changed |= SliderFloatReset("Right horizontal (deg)", &state.xrViewBoxRightYawDeg, -15.0f, 15.0f, "%.2f", 0.0f);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Right eye only. Positive = right. Negative = left.");
+            }
+            ImGui::TextUnformatted("HUD fuse");
+            ImGui::TextWrapped("The 2D HUD is reprojected by the same per-eye yaw/pitch as the cameras, "
+                "not slid sideways. Watch the HUD and drag this to trim that angle until the two copies become one. "
+                "0 = automatic from the per-eye sliders above.");
+            changed |= SliderFloatReset("HUD fuse (deg)", &state.xrViewBoxHudTrimDeg, -15.0f, 15.0f, "%.2f", 0.0f);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Trim the HUD reproject angle (not a left/right pan).\n"
+                    "Positive = right. Negative = left. 0 = automatic only.");
+            }
+            ImGui::TextUnformatted("Aim fuse");
+            ImGui::TextWrapped("The red barrel/aim dot is a 2D marker like the HUD. "
+                "Reprojected with the per-eye yaw; trim until the two dots become one.");
+            changed |= SliderFloatReset("Aim fuse (deg)", &state.xrViewBoxAimTrimDeg, -15.0f, 15.0f, "%.2f", 0.0f);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Trim the aim-dot reproject angle.\n"
+                    "Positive = right. Negative = left. 0 = automatic only.");
+            }
+            if (s_parked)
+                ImGui::EndDisabled();
         }
 
         ImGui::Separator();

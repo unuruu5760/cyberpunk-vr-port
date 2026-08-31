@@ -91,6 +91,14 @@ public:
         // headset, so the caller decides via CyberpunkVR_HudDistanceM and the note there explains both
         // sides.
         float hudShiftU      = 0.0f;
+        // Angular reproject of the HUD sample, matching per-eye camera yaw/pitch. A 2D pan cannot
+        // fuse a HUD once the eyes are rotated rather than translated -- this unprojects the
+        // destination pixel, rotates by these radians, and reprojects into MAIN's HUD UV.
+        // hudHalfTan* are tan(half FOV) of the rendered image (horizontal / vertical).
+        float hudWarpYaw     = 0.0f;
+        float hudWarpPitch   = 0.0f;
+        float hudHalfTanX    = 1.0f;
+        float hudHalfTanY    = 1.0f;
     };
 
     // Full composite: scene + HUD -> dstColor (which must be in RENDER_TARGET). Unlike

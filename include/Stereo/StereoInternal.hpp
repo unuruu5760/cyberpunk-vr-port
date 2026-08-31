@@ -487,6 +487,7 @@ extern "C" __declspec(dllexport) uint64_t CyberpunkVR_DebugVisionOverlays;
 extern "C" __declspec(dllexport) void CyberpunkVR_NoteHudCompositeInputs( const void* hud, const void* blur, const void* expo, const void* frameCb, const void* hudCb);
 extern "C" float    CyberpunkVR_BarrelDotNdcX2;
 extern "C" float    CyberpunkVR_BarrelDotNdcY;
+extern "C" float    CyberpunkVR_BarrelDotNdcY2;
 extern "C" float    CyberpunkVR_BarrelDotRadiusPx;
 extern "C" int      CyberpunkVR_BarrelDotSecondEye;
 extern "C" unsigned long long CyberpunkVR_BarrelDotTick;

@@ -100,6 +100,12 @@ struct LiveControlsUiState {
     int xrLensBoxCenter;
     float xrViewBoxPitchDeg;
     float xrViewBoxYawDeg;
+    float xrViewBoxLeftPitchDeg;
+    float xrViewBoxLeftYawDeg;
+    float xrViewBoxRightPitchDeg;
+    float xrViewBoxRightYawDeg;
+    float xrViewBoxHudTrimDeg;
+    float xrViewBoxAimTrimDeg;
 };
 
 // Read-only snapshot for the compact ADS-camera diagnostic (dabinn, TofuExpress f8a827eb).

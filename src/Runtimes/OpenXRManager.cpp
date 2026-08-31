@@ -44,6 +44,7 @@ extern volatile int g_verboseLog; // gate per-frame hand-tracking spam
 extern "C" int GetDisableRoll();
 extern "C" float GetForcedFov();
 extern "C" float GetGameRenderFovDeg(); // FOV (deg) the game actually renders with (native or forced); 0 if unknown
+extern "C" int CyberpunkVR_MainIsRightEye;
 extern "C" float GetTargetRenderVfovDegC(); // overscanned vertical FOV (deg) the game renders = lens*overscan; 0 if unknown
 extern "C" float GetMenuFov();
 extern "C" float GetMenuFollowDeg(); // head-vs-panel yaw offset (deg) that starts the lazy menu re-center
@@ -1544,6 +1545,170 @@ void OpenXRManager::ApplyViewBoxPitch(OpenXRHeadPose* pose) {
             pitch * (180.0f / 3.1415926535f),
             yaw * (180.0f / 3.1415926535f));
     }
+}
+
+static float ViewBoxSliderDegToRad(float deg) {
+    if (!(deg > -30.0f && deg < 30.0f)) return 0.0f;
+    if (std::fabs(deg) < 0.01f) return 0.0f;
+    const float rad = deg * (3.1415926535f / 180.0f);
+    if (!(rad > -0.7f && rad < 0.7f)) return 0.0f;
+    return rad;
+}
+
+static bool ViewBoxEyeExtraQuat(int eye, XrQuaternionf* out) {
+    *out = { 0.0f, 0.0f, 0.0f, 1.0f };
+    if (eye != 0 && eye != 1) return false;
+    const float pitchDeg = (eye == 0) ? g_liveControls.xrViewBoxLeftPitchDeg
+                                      : g_liveControls.xrViewBoxRightPitchDeg;
+    const float yawDeg = (eye == 0) ? g_liveControls.xrViewBoxLeftYawDeg
+                                    : g_liveControls.xrViewBoxRightYawDeg;
+    // Same sign as ApplyViewBoxPitch: extra = -slider (positive slider = picture down/right).
+    const float yaw = -ViewBoxSliderDegToRad(yawDeg);
+    const float pitch = -ViewBoxSliderDegToRad(pitchDeg);
+    if (std::fabs(yaw) < 1.0e-5f && std::fabs(pitch) < 1.0e-5f) return false;
+    XrQuaternionf q{ 0.0f, 0.0f, 0.0f, 1.0f };
+    if (std::fabs(yaw) >= 1.0e-5f) {
+        const float half = yaw * 0.5f;
+        q = MultiplyQuat(q, { 0.0f, std::sinf(half), 0.0f, std::cosf(half) });
+    }
+    if (std::fabs(pitch) >= 1.0e-5f) {
+        const float half = pitch * 0.5f;
+        q = MultiplyQuat(q, { std::sinf(half), 0.0f, 0.0f, std::cosf(half) });
+    }
+    *out = q;
+    return true;
+}
+
+void OpenXRManager::ApplyViewBoxEyeExtra(XrQuaternionf* q, int eye) {
+    if (!q) return;
+    XrQuaternionf extra{};
+    if (!ViewBoxEyeExtraQuat(eye, &extra)) return;
+    *q = MultiplyQuat(*q, extra);
+}
+
+void OpenXRManager::ApplyViewBoxEyeExtraGame(float* qXyzw, int eye) {
+    if (!qXyzw) return;
+    XrQuaternionf extra{};
+    if (!ViewBoxEyeExtraQuat(eye, &extra)) return;
+    // Same XR -> game convert the HMD uses: (x, y, z, w) -> (x, -z, y, w).
+    XrQuaternionf g{ qXyzw[0], qXyzw[1], qXyzw[2], qXyzw[3] };
+    const XrQuaternionf extraGame{ extra.x, -extra.z, extra.y, extra.w };
+    g = MultiplyQuat(g, extraGame);
+    qXyzw[0] = g.x;
+    qXyzw[1] = g.y;
+    qXyzw[2] = g.z;
+    qXyzw[3] = g.w;
+}
+
+float OpenXRManager::GetViewBoxEyeExtraYawRad(int eye) {
+    if (eye != 0 && eye != 1) return 0.0f;
+    const float yawDeg = (eye == 0) ? g_liveControls.xrViewBoxLeftYawDeg
+                                    : g_liveControls.xrViewBoxRightYawDeg;
+    return -ViewBoxSliderDegToRad(yawDeg);
+}
+
+float OpenXRManager::GetViewBoxEyeExtraPitchRad(int eye) {
+    if (eye != 0 && eye != 1) return 0.0f;
+    const float pitchDeg = (eye == 0) ? g_liveControls.xrViewBoxLeftPitchDeg
+                                      : g_liveControls.xrViewBoxRightPitchDeg;
+    return -ViewBoxSliderDegToRad(pitchDeg);
+}
+
+static void FillViewBoxVrcamWarp(float trimYawDeg, float* outYawRad, float* outPitchRad,
+                                 float* outHalfTanX, float* outHalfTanY,
+                                 uint32_t eyeWidth, uint32_t eyeHeight) {
+    if (outYawRad) *outYawRad = 0.0f;
+    if (outPitchRad) *outPitchRad = 0.0f;
+    if (outHalfTanX) *outHalfTanX = 1.0f;
+    if (outHalfTanY) *outHalfTanY = 1.0f;
+    OpenXRManager& xr = OpenXRManager::Get();
+    const int mainEye = CyberpunkVR_MainIsRightEye ? 1 : 0;
+    const int vrcamEye = 1 - mainEye;
+    float yaw = xr.GetViewBoxEyeExtraYawRad(mainEye) - xr.GetViewBoxEyeExtraYawRad(vrcamEye);
+    yaw += -ViewBoxSliderDegToRad(trimYawDeg);
+    const float pitch = xr.GetViewBoxEyeExtraPitchRad(mainEye) - xr.GetViewBoxEyeExtraPitchRad(vrcamEye);
+    if (outYawRad) *outYawRad = yaw;
+    if (outPitchRad) *outPitchRad = pitch;
+    float fovDeg = GetForcedFov();
+    if (!(fovDeg > 1.0f && fovDeg < 170.0f)) fovDeg = GetGameRenderFovDeg();
+    if (!(fovDeg > 1.0f && fovDeg < 170.0f)) fovDeg = 90.0f;
+    const float thx = std::tanf(fovDeg * 0.5f * (3.1415926535f / 180.0f));
+    float thy = thx;
+    if (eyeWidth > 0 && eyeHeight > 0)
+        thy = thx * (static_cast<float>(eyeHeight) / static_cast<float>(eyeWidth));
+    if (outHalfTanX) *outHalfTanX = thx;
+    if (outHalfTanY) *outHalfTanY = thy;
+}
+
+void OpenXRManager::GetViewBoxVrcamHudWarp(float* outYawRad, float* outPitchRad,
+                                           float* outHalfTanX, float* outHalfTanY,
+                                           uint32_t eyeWidth, uint32_t eyeHeight) {
+    FillViewBoxVrcamWarp(g_liveControls.xrViewBoxHudTrimDeg,
+                         outYawRad, outPitchRad, outHalfTanX, outHalfTanY, eyeWidth, eyeHeight);
+}
+
+void OpenXRManager::GetViewBoxVrcamAimWarp(float* outYawRad, float* outPitchRad,
+                                           float* outHalfTanX, float* outHalfTanY,
+                                           uint32_t eyeWidth, uint32_t eyeHeight) {
+    FillViewBoxVrcamWarp(g_liveControls.xrViewBoxAimTrimDeg,
+                         outYawRad, outPitchRad, outHalfTanX, outHalfTanY, eyeWidth, eyeHeight);
+}
+
+static bool ViewBoxHudWarpUv(float u, float v, float yaw, float pitch, float thx, float thy,
+                             bool inverse, float* outU, float* outV) {
+    if (!(thx > 0.01f) || !(thy > 0.01f)) return false;
+    float nx = (u - 0.5f) * 2.0f * thx;
+    float ny = (0.5f - v) * 2.0f * thy;
+    float nz = 1.0f;
+    if (!inverse) {
+        const float cy = std::cosf(yaw);
+        const float sy = std::sinf(yaw);
+        const float x1 = nx * cy + nz * sy;
+        const float y1 = ny;
+        const float z1 = -nx * sy + nz * cy;
+        const float cp = std::cosf(pitch);
+        const float sp = std::sinf(pitch);
+        nx = x1;
+        ny = y1 * cp - z1 * sp;
+        nz = y1 * sp + z1 * cp;
+    } else {
+        const float cp = std::cosf(-pitch);
+        const float sp = std::sinf(-pitch);
+        const float x1 = nx;
+        const float y1 = ny * cp - nz * sp;
+        const float z1 = ny * sp + nz * cp;
+        const float cy = std::cosf(-yaw);
+        const float sy = std::sinf(-yaw);
+        nx = x1 * cy + z1 * sy;
+        ny = y1;
+        nz = -x1 * sy + z1 * cy;
+    }
+    if (nz < 0.05f) return false;
+    *outU = 0.5f + 0.5f * (nx / nz) / thx;
+    *outV = 0.5f - 0.5f * (ny / nz) / thy;
+    return true;
+}
+
+bool OpenXRManager::WarpViewBoxHudUv(float u, float v, bool inverse, uint32_t eyeWidth,
+                                     uint32_t eyeHeight, float* outU, float* outV) {
+    if (!outU || !outV) return false;
+    *outU = u;
+    *outV = v;
+    float yaw = 0.0f, pitch = 0.0f, thx = 1.0f, thy = 1.0f;
+    GetViewBoxVrcamHudWarp(&yaw, &pitch, &thx, &thy, eyeWidth, eyeHeight);
+    if (std::fabs(yaw) < 1.0e-5f && std::fabs(pitch) < 1.0e-5f) return false;
+    return ViewBoxHudWarpUv(u, v, yaw, pitch, thx, thy, inverse, outU, outV);
+}
+
+bool OpenXRManager::WarpViewBoxAimUv(float u, float v, bool inverse, uint32_t eyeWidth,
+                                     uint32_t eyeHeight, float* outU, float* outV) {
+    if (!outU || !outV) return false;
+    *outU = u;
+    *outV = v;
+    float yaw = 0.0f, pitch = 0.0f, thx = 1.0f, thy = 1.0f;
+    GetViewBoxVrcamAimWarp(&yaw, &pitch, &thx, &thy, eyeWidth, eyeHeight);
+    if (std::fabs(yaw) < 1.0e-5f && std::fabs(pitch) < 1.0e-5f) return false;
+    return ViewBoxHudWarpUv(u, v, yaw, pitch, thx, thy, inverse, outU, outV);
 }
 
 void OpenXRManager::StoreRenderEyePose(int eye, const OpenXRHeadPose& pose, uint32_t seq) {
